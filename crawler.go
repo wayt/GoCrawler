@@ -87,8 +87,22 @@ func getLootTable(body string) (*list.List, error) {
     return nil, nil;
 }
 
+func getNpcName(body string) (*string) {
 
-func parsePage(target string) (*list.List, error) {
+    re, err := regexp.Compile(`<title>(.*) -.*-.*</title>`)
+    if err != nil {
+        return nil
+    }
+
+    res := re.FindStringSubmatch(body)
+    if len(res) > 1 {
+        return &res[1]
+    }
+    return nil
+}
+
+
+func parsePage(target string) (*list.List, *string, error) {
 
     fmt.Printf("Opening %s\n", target);
 
@@ -97,7 +111,7 @@ func parsePage(target string) (*list.List, error) {
     if err != nil {
 
         fmt.Printf("Error: %s\n", err);
-        return nil, err;
+        return nil, nil, err;
     } else {
 
         defer resp.Body.Close();
@@ -106,26 +120,27 @@ func parsePage(target string) (*list.List, error) {
         if err != nil {
 
             fmt.Printf("Error: %s\n", err);
-            return nil, err;
+            return nil, nil, err;
         } else {
 
             l, err := getLootTable(string(body));
             if err != nil {
                 fmt.Printf("Error: %s\n", err);
-                return nil, err;
+                return nil, nil, err;
             }
-            return l, err;
+            name := getNpcName(string(body))
+            return l, name, err;
         }
     }
 
-    return nil, nil;
+    return nil, nil, nil;
 }
 
 func dumpLootFor(entry int, boss int) {
 
     target := "http://wowhead.com/npc=" + strconv.Itoa(entry);
 
-    l, err := parsePage(target);
+    l, name, err := parsePage(target);
 
     if err != nil {
         return;
@@ -136,10 +151,15 @@ func dumpLootFor(entry int, boss int) {
         return;
     }
 
-    writeLoot(entry, l, boss);
+    if name == nil {
+        fmt.Printf("Empty name for %d\n", entry)
+        return
+    }
+
+    writeLoot(entry, l, name, boss);
 }
 
-func writeLoot(entry int, l *list.List, boss int) {
+func writeLoot(entry int, l *list.List, name *string, boss int) {
 
     file, err := os.OpenFile("loot.sql", os.O_RDWR | os.O_APPEND, 0660)
     if err != nil {
@@ -147,6 +167,7 @@ func writeLoot(entry int, l *list.List, boss int) {
         return
     }
 
+    fmt.Fprintf(file, "-- %s (%d)\n", *name, entry)
     fmt.Fprintf(file, "DELETE FROM `creature_loot_template` WHERE `entry` = %d;\n", entry);
     fmt.Fprintf(file, "INSERT INTO `creature_loot_template` (`entry`, `item`, `ChanceOrQuestChance`, `lootmode`, `groupid`, `mincountOrRef`, `maxcount`) VALUES\n");
 
@@ -195,6 +216,7 @@ func main() {
         Usage()
         return
     }
+
 
     err := truncFile();
 
