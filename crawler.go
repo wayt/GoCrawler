@@ -7,7 +7,6 @@ import (
     "regexp"
     "container/list"
     "strconv"
-    "math"
     "os"
     "flag"
     "strings"
@@ -15,7 +14,7 @@ import (
 
 type LootTable struct {
     itemid int
-    chance int
+    chance float64
     LootTable list.List
 }
 
@@ -47,18 +46,23 @@ func extractList(str string) (*list.List, error) {
         //fmt.Printf("res[%d][1]: %q\n", i, res2[i]);
 
         res3 := re3.FindStringSubmatch(res2[i][1]);
-        itemid, _ := strconv.Atoi(res3[1]);
-        count, _ := strconv.ParseFloat(res3[2], 32);
-        totalCount, _ :=  strconv.ParseFloat(res3[3], 32);
-        chance := math.Floor((count / totalCount * 100) + 0.5);
+        if len(res3) < 3 {
+            continue
+        }
 
-        elem := new(LootTable);
-        elem.itemid = itemid;
-        elem.chance = int(chance);
-        l.PushBack(elem);
+        itemid, _ := strconv.Atoi(res3[1]);
+        count, _ := strconv.ParseFloat(res3[2], 64);
+        totalCount, _ :=  strconv.ParseFloat(res3[3], 64);
+
+        chance := (count / totalCount * 100);
+
+        elem := new(LootTable)
+        elem.itemid = itemid
+        elem.chance = chance
+        l.PushBack(elem)
 
         //fmt.Printf("index: %d, data: %q\n", i, res3);
-        fmt.Printf("Item: %d, chance: %f\n", itemid, chance);
+        fmt.Printf("Item: %d, chance: %f\n", elem.itemid, elem.chance);
     }
 
     return &l, nil;
@@ -184,7 +188,7 @@ func writeLoot(entry int, l *list.List, name *string, boss int) {
         if e.Next() == nil {
             sep = ';';
         }
-        fmt.Fprintf(file, "('%d','%d','%d','1','0','1','1')%c\n", entry, loot.itemid, loot.chance, sep);
+        fmt.Fprintf(file, "('%d','%d','%f','1','1','1','1')%c\n", entry, loot.itemid, loot.chance, sep);
     }
 
     fmt.Fprintf(file, "\n");
